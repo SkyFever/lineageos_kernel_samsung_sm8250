@@ -31,6 +31,8 @@
 #include <linux/uaccess.h>
 /*#include <asm/gpio.h>*/
 
+#include <linux/sec_class.h>
+
 #include "sec_ts.h"
 
 u8 lv1cmd;
