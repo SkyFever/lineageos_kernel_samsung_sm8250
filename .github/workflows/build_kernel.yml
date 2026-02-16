@@ -1,0 +1,80 @@
+name: Build Samsung F2Q Kernel
+
+on:
+  workflow_dispatch: # 수동으로 실행 버튼을 눌러 빌드 시작
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:22.04  # 최신 빌드 환경 사용
+
+    steps:
+    - name: Checkout Kernel Source
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+
+    - name: Install Dependencies
+      run: |
+        apt-get update
+        apt-get install -y git bc bison flex libssl-dev make gcc-aarch64-linux-gnu build-essential curl libncurses5-dev libncurses5 python3
+
+    - name: Setup Clang Toolchain
+      run: |
+        # Proton Clang 다운로드 (일반적으로 커널 빌드에 많이 사용됨)
+        git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang
+        
+    - name: Configure Kernel (Merge Configs)
+      env:
+        ARCH: arm64
+        SUBARCH: arm64
+        CC: ${{ github.workspace }}/clang/bin/clang
+        CROSS_COMPILE: aarch64-linux-gnu-
+        CROSS_COMPILE_ARM32: arm-linux-gnueabi-
+        NM: ${{ github.workspace }}/clang/bin/llvm-nm
+        AR: ${{ github.workspace }}/clang/bin/llvm-ar
+        OBJCOPY: ${{ github.workspace }}/clang/bin/llvm-objcopy
+        OBJDUMP: ${{ github.workspace }}/clang/bin/llvm-objdump
+        STRIP: ${{ github.workspace }}/clang/bin/llvm-strip
+      run: |
+        # 1. Clean Build
+        make mrproper
+
+        # 2. 기본 Kona 설정 적용
+        make vendor/kona_defconfig
+
+        # 3. F2Q 전용 설정 병합 (merge_config.sh 스크립트 활용)
+        # merge_config.sh는 커널 소스 내에 내장된 도구입니다.
+        ./scripts/kconfig/merge_config.sh -m .config arch/arm64/configs/vendor/samsung/f2q.config
+        
+        # 4. 최종 설정 확정
+        make olddefconfig
+
+    - name: Build Kernel
+      env:
+        ARCH: arm64
+        SUBARCH: arm64
+        CC: ${{ github.workspace }}/clang/bin/clang
+        CROSS_COMPILE: aarch64-linux-gnu-
+        CROSS_COMPILE_ARM32: arm-linux-gnueabi-
+        NM: ${{ github.workspace }}/clang/bin/llvm-nm
+        AR: ${{ github.workspace }}/clang/bin/llvm-ar
+        OBJCOPY: ${{ github.workspace }}/clang/bin/llvm-objcopy
+        OBJDUMP: ${{ github.workspace }}/clang/bin/llvm-objdump
+        STRIP: ${{ github.workspace }}/clang/bin/llvm-strip
+      run: |
+        # CPU 코어 수에 맞춰 빌드 실행
+        make -j$(nproc) Image.gz dtbs
+
+    - name: Upload Image
+      uses: actions/upload-artifact@v4
+      with:
+        name: Image.gz
+        path: arch/arm64/boot/Image.gz
+
+    - name: Upload DTB
+      uses: actions/upload-artifact@v4
+      with:
+        name: dtb-files
+        path: arch/arm64/boot/dts/vendor/qcom/*.dtb
