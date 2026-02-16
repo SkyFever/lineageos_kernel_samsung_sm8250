@@ -1,13 +1,13 @@
 name: Build Samsung F2Q Kernel
 
 on:
-  workflow_dispatch: # 수동으로 실행 버튼을 눌러 빌드 시작
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ubuntu:22.04  # 최신 빌드 환경 사용
+      image: ubuntu:22.04
 
     steps:
     - name: Checkout Kernel Source
@@ -18,37 +18,33 @@ jobs:
     - name: Install Dependencies
       run: |
         apt-get update
-        apt-get install -y git bc bison flex libssl-dev make gcc-aarch64-linux-gnu build-essential curl libncurses5-dev libncurses5 python3
+        apt-get install -y git bc bison flex libssl-dev make gcc-aarch64-linux-gnu build-essential curl libncurses5-dev libncurses5 python3 cpio rsync libelf-dev
 
     - name: Setup Clang Toolchain
       run: |
-        # Proton Clang 다운로드 (일반적으로 커널 빌드에 많이 사용됨)
         git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang
-        
-    - name: Configure Kernel (Merge Configs)
+
+    - name: Configure Kernel
       env:
         ARCH: arm64
         SUBARCH: arm64
         CC: ${{ github.workspace }}/clang/bin/clang
         CROSS_COMPILE: aarch64-linux-gnu-
         CROSS_COMPILE_ARM32: arm-linux-gnueabi-
-        NM: ${{ github.workspace }}/clang/bin/llvm-nm
-        AR: ${{ github.workspace }}/clang/bin/llvm-ar
-        OBJCOPY: ${{ github.workspace }}/clang/bin/llvm-objcopy
-        OBJDUMP: ${{ github.workspace }}/clang/bin/llvm-objdump
-        STRIP: ${{ github.workspace }}/clang/bin/llvm-strip
       run: |
-        # 1. Clean Build
+        # 1. Clean
         make mrproper
 
-        # 2. 기본 Kona 설정 적용
-        make vendor/kona_defconfig
+        # 2. Merge configs: kona_defconfig + f2q.config -> .config
+        # merge_config.sh 사용법: [output_dir] [base_config] [fragment_configs...]
+        scripts/kconfig/merge_config.sh -m -O . arch/arm64/configs/vendor/kona_defconfig arch/arm64/configs/vendor/samsung/f2q.config
 
-        # 3. F2Q 전용 설정 병합 (merge_config.sh 스크립트 활용)
-        # merge_config.sh는 커널 소스 내에 내장된 도구입니다.
-        ./scripts/kconfig/merge_config.sh -m .config arch/arm64/configs/vendor/samsung/f2q.config
-        
-        # 4. 최종 설정 확정
+        # 3. Disable LTO to prevent OOM (Out of Memory) on GitHub Runners
+        ./scripts/config --file .config --disable LTO
+        ./scripts/config --file .config --disable LTO_CLANG
+        ./scripts/config --file .config --disable THINLTO
+
+        # 4. Finalize config
         make olddefconfig
 
     - name: Build Kernel
@@ -64,8 +60,14 @@ jobs:
         OBJDUMP: ${{ github.workspace }}/clang/bin/llvm-objdump
         STRIP: ${{ github.workspace }}/clang/bin/llvm-strip
       run: |
-        # CPU 코어 수에 맞춰 빌드 실행
-        make -j$(nproc) Image.gz dtbs
+        # Build Kernel Image and Device Tree Blobs
+        # -Werror를 무시하도록 KCFLAGS 설정 (구버전 커널 + 최신 컴파일러 조합 시 경고 무시)
+        make -j$(nproc) KCFLAGS="-w" Image dtbs
+
+    - name: Pack Image
+      run: |
+        # 압축 (선택 사항)
+        gzip -c arch/arm64/boot/Image > arch/arm64/boot/Image.gz
 
     - name: Upload Image
       uses: actions/upload-artifact@v4
