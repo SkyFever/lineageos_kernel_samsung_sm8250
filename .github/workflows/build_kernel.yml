@@ -18,63 +18,28 @@ jobs:
     - name: Install Dependencies
       run: |
         apt-get update
-        apt-get install -y git bc bison flex libssl-dev make gcc-aarch64-linux-gnu build-essential curl libncurses5-dev libncurses5 python3 cpio rsync libelf-dev
+        apt-get install -y git bc bison flex libssl-dev make gcc-aarch64-linux-gnu build-essential curl libncurses5-dev libncurses5 python3
 
     - name: Setup Clang Toolchain
       run: |
         git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang
 
-    - name: Patch Kernel Source (Ultra Fixes)
+    - name: Fix Source Code Errors
       run: |
-        echo "Applying Ultra Fixes..."
+        # 1. techpack/audio: 함수 선언 타입 불일치 수정 (void -> int)
+        sed -i 's/void sec_pcie_l1ss_enable(int);/int sec_pcie_l1ss_enable(int);/' techpack/audio/asoc/msm-pcm-q6-noirq.c
+        sed -i 's/void sec_pcie_l1ss_disable(int);/int sec_pcie_l1ss_disable(int);/' techpack/audio/asoc/msm-pcm-q6-noirq.c
 
-        # Fix 1: Audio L1SS_AUDIO error (Force Define)
-        # 헤더 include 시도하지 않고 바로 상수를 정의합니다.
-        TARGET_FILE="techpack/audio/asoc/msm-pcm-q6-noirq.c"
-        if [ -f "$TARGET_FILE" ]; then
-            sed -i '/#include <linux\/module.h>/a #ifndef L1SS_AUDIO\n#define L1SS_AUDIO 0\n#endif\nvoid sec_pcie_l1ss_disable(int);\nvoid sec_pcie_l1ss_enable(int);' $TARGET_FILE
-        fi
+        # 2. techpack/camera: 헤더 파일 경로 수정
+        sed -i 's|#include "cam_req_mgr_interface.h"|#include "../cam_req_mgr/cam_req_mgr_interface.h"|' techpack/camera/drivers/cam_utils/cam_trace.h
 
-        # Fix 2: Clock Trace error
-        MAKEFILE_QCOM="drivers/clk/qcom/Makefile"
-        if [ -f "$MAKEFILE_QCOM" ]; then
-            echo "CFLAGS_clk-debug.o := -I\$(src)" >> $MAKEFILE_QCOM
-        fi
+        # 3. drivers/input/touchscreen: sec_class 헤더 추가
+        # includes.h가 있다면 거기에 추가하거나, 소스 파일 상단에 직접 추가
+        sed -i '/#include <linux\/module.h>/a #include <linux\/sec_class.h>' drivers/input/touchscreen/sec_ts/y79a_c/sec_ts_only_vendor.c
 
-        # Fix 3: HID Trace error
-        MAKEFILE_HID="drivers/hid/Makefile"
-        if [ -f "$MAKEFILE_HID" ]; then
-            echo "CFLAGS_hid-trace.o := -I\$(src)" >> $MAKEFILE_HID
-        fi
-
-        # Fix 4: Camera Header Path error (cam_req_mgr_core.h missing)
-        # cam_trace.h 파일 수정
-        CAM_TRACE_FILE="techpack/camera/drivers/cam_utils/cam_trace.h"
-        if [ -f "$CAM_TRACE_FILE" ]; then
-            sed -i 's|#include "cam_req_mgr_core.h"|#include "../cam_req_mgr/cam_req_mgr_core.h"|g' $CAM_TRACE_FILE
-        fi
-
-        # Fix 5: Camera Sensor Header error (cam_cci_dev.h missing)
-        # cam_sensor_i2c.h 에서 cam_cci_dev.h를 못 찾는 문제
-        CAM_SENSOR_I2C_HEADER="techpack/camera/drivers/cam_sensor_module/cam_sensor_io/cam_sensor_i2c.h"
-        if [ -f "$CAM_SENSOR_I2C_HEADER" ]; then
-            # 상대 경로로 수정: ../../cam_cci/cam_cci_dev.h
-            sed -i 's|#include "cam_cci_dev.h"|#include "../../cam_cci/cam_cci_dev.h"|g' $CAM_SENSOR_I2C_HEADER
-        fi
-
-        # Fix 6: lib/fault-inject.c WRITE_ONCE error
-        FAULT_FILE="lib/fault-inject.c"
-        if [ -f "$FAULT_FILE" ]; then
-            sed -i 's/if (!WRITE_ONCE(current->fail_nth, fail_nth - 1))/current->fail_nth = fail_nth - 1; if (!current->fail_nth)/g' $FAULT_FILE
-        fi
-
-        # Fix 7: Touchscreen input_raw_data_clear macro error
-        # include/uapi/linux/input.h 에 정의된 매크로가 인자를 받지 않음 -> 인자를 받도록 수정 (가변 인자 매크로 사용)
-        INPUT_HEADER="include/uapi/linux/input.h"
-        if [ -f "$INPUT_HEADER" ]; then
-            # 기존: #define input_raw_data_clear() {}
-            # 수정: #define input_raw_data_clear(...) {}
-            sed -i 's/#define input_raw_data_clear() {}/#define input_raw_data_clear(...) {}/g' $INPUT_HEADER
+        # 4. f2q.config에 CONFIG_SEC_CLASS=y 추가 (이미 있다면 중복 방지)
+        if ! grep -q "CONFIG_SEC_CLASS=y" arch/arm64/configs/vendor/samsung/f2q.config; then
+          echo "CONFIG_SEC_CLASS=y" >> arch/arm64/configs/vendor/samsung/f2q.config
         fi
 
     - name: Configure Kernel
@@ -84,23 +49,15 @@ jobs:
         CC: ${{ github.workspace }}/clang/bin/clang
         CROSS_COMPILE: aarch64-linux-gnu-
         CROSS_COMPILE_ARM32: arm-linux-gnueabi-
+        NM: ${{ github.workspace }}/clang/bin/llvm-nm
+        AR: ${{ github.workspace }}/clang/bin/llvm-ar
+        OBJCOPY: ${{ github.workspace }}/clang/bin/llvm-objcopy
+        OBJDUMP: ${{ github.workspace }}/clang/bin/llvm-objdump
+        STRIP: ${{ github.workspace }}/clang/bin/llvm-strip
       run: |
         make mrproper
-        
-        # Merge configs
-        scripts/kconfig/merge_config.sh -m -O . arch/arm64/configs/vendor/kona_defconfig arch/arm64/configs/vendor/samsung/f2q.config
-
-        # Disable LTO & Error checks
-        ./scripts/config --file .config --disable LTO
-        ./scripts/config --file .config --disable LTO_CLANG
-        ./scripts/config --file .config --disable THINLTO
-        ./scripts/config --file .config --disable CFI_CLANG
-        ./scripts/config --file .config --disable CONFIG_WERROR
-        
-        # Disable Fault Injection
-        ./scripts/config --file .config --disable FAULT_INJECTION
-        ./scripts/config --file .config --disable FAULT_INJECTION_DEBUG_FS
-
+        make vendor/kona_defconfig
+        ./scripts/kconfig/merge_config.sh -m .config arch/arm64/configs/vendor/samsung/f2q.config
         make olddefconfig
 
     - name: Build Kernel
@@ -116,13 +73,7 @@ jobs:
         OBJDUMP: ${{ github.workspace }}/clang/bin/llvm-objdump
         STRIP: ${{ github.workspace }}/clang/bin/llvm-strip
       run: |
-        # KCFLAGS="-w": 모든 경고 무시
-        # -Wno-error: 경고를 에러로 처리하지 않음
-        make -j$(nproc) KCFLAGS="-w -Wno-error" Image dtbs
-
-    - name: Pack Image
-      run: |
-        gzip -c arch/arm64/boot/Image > arch/arm64/boot/Image.gz
+        make -j$(nproc) Image.gz dtbs
 
     - name: Upload Image
       uses: actions/upload-artifact@v4
