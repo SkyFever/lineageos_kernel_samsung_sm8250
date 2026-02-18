@@ -2,6 +2,17 @@ name: Build Kernel (Z Fold 2)
 
 on:
   workflow_dispatch:
+    inputs:
+      region:
+        description: 'Region variant'
+        required: true
+        default: 'EUR_OPEN'
+        type: choice
+        options:
+          - EUR_OPEN
+          - USA_SINGLE
+          - KOR_SINGLE
+          - JPN_SINGLE
 
 jobs:
   build:
@@ -31,13 +42,28 @@ jobs:
           sudo ln -sf /usr/bin/llvm-objdump-14  /usr/local/bin/llvm-objdump
           sudo ln -sf /usr/bin/llvm-strip-14    /usr/local/bin/llvm-strip
 
-      - name: Install mkdtimg
+      - name: Install mkdtboimg
         run: |
-          # AOSP prebuilts에서 mkdtimg 받기
-          curl -Lo mkdtimg \
-            "https://github.com/LineageOS/android_prebuilts_misc/raw/master/linux-x86/dtc/mkdtimg"
-          chmod +x mkdtimg
-          sudo mv mkdtimg /usr/local/bin/
+          curl -Lo mkdtboimg.py \
+            "https://android.googlesource.com/platform/system/libufdt/+/refs/heads/master/utils/src/mkdtboimg.py?format=TEXT" \
+            | base64 -d > mkdtboimg.py
+          chmod +x mkdtboimg.py
+          sudo mv mkdtboimg.py /usr/local/bin/mkdtboimg
+
+      - name: Apply region config
+        run: |
+          REGION="${{ github.event.inputs.region }}"
+          CONFIG="arch/arm64/configs/vendor/samsung/f2q.config"
+
+          # 모든 MACH_F2Q 옵션 비활성화
+          sed -i '/^CONFIG_MACH_F2Q_/d' $CONFIG
+          sed -i '/^# CONFIG_MACH_F2Q_/d' $CONFIG
+
+          # 선택한 region만 활성화
+          echo "CONFIG_MACH_F2Q_${REGION}=y" >> $CONFIG
+
+          echo "Applied region: $REGION"
+          grep "MACH_F2Q" $CONFIG
 
       - name: Merge configs and build
         run: |
@@ -71,17 +97,63 @@ jobs:
 
       - name: Create dtbo.img
         run: |
-          # .dtbo 파일 찾기
-          DTBO_FILES=$(find out/arch/arm64/boot/dts -name "*.dtbo" | sort)
+          REGION="${{ github.event.inputs.region }}"
+
+          # EUR_OPEN → eur, KOR_SINGLE → kor 등 소문자 앞부분만 추출
+          REGION_LOWER=$(echo "$REGION" | tr '[:upper:]' '[:lower:]' | cut -d'_' -f1)
+          echo "Looking for dtbo pattern: *-${REGION_LOWER}-*"
+
+          DTBO_FILES=$(find out/arch/arm64/boot/dts/samsung/f2q \
+            -name "*-${REGION_LOWER}-*.dtbo" | sort)
           echo "Found dtbo files:"
           echo "$DTBO_FILES"
 
           if [ -z "$DTBO_FILES" ]; then
-            echo "Warning: No .dtbo files found"
+            echo "Error: No .dtbo files found for region $REGION"
             exit 1
           fi
 
-          mkdtimg create out/arch/arm64/boot/dtbo.img $DTBO_FILES
+          mkdtboimg create out/arch/arm64/boot/dtbo.img $DTBO_FILES
+
+      - name: Setup magiskboot
+        run: |
+          curl -Lo magiskboot \
+            "https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk"
+          # apk는 zip이라 안에서 magiskboot만 추출
+          unzip -o magiskboot -d magisk_tmp 'lib/x86_64/libmagiskboot.so'
+          cp magisk_tmp/lib/x86_64/libmagiskboot.so /usr/local/bin/magiskboot
+          chmod +x /usr/local/bin/magiskboot
+
+      - name: Repack boot.img
+        run: |
+          mkdir -p boot_work
+          cp stock_boot.img boot_work/
+          cd boot_work
+
+          # 언팩
+          magiskboot unpack stock_boot.img
+
+          # 커널 교체
+          cp ../out/arch/arm64/boot/Image kernel
+
+          # 리팩
+          magiskboot repack stock_boot.img ../boot.img
+
+          cd ..
+
+      - name: Package for Odin (tar.md5)
+        run: |
+          tar -cf boot.tar.md5 boot.img
+          md5sum -t boot.tar.md5 >> boot.tar.md5
+
+      - name: Upload Odin flashable
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: odin-f2q
+          path: |
+            boot.tar.md5
+            out/arch/arm64/boot/dtbo.img
 
       - name: Upload kernel
         if: success()
