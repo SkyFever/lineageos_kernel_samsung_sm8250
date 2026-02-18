@@ -31,9 +31,17 @@ jobs:
           sudo ln -sf /usr/bin/llvm-objdump-14  /usr/local/bin/llvm-objdump
           sudo ln -sf /usr/bin/llvm-strip-14    /usr/local/bin/llvm-strip
 
+      - name: Install mkdtimg
+        run: |
+          # AOSP prebuilts에서 mkdtimg 받기
+          curl -Lo mkdtimg \
+            "https://github.com/LineageOS/android_prebuilts_misc/raw/master/linux-x86/dtc/mkdtimg"
+          chmod +x mkdtimg
+          sudo mv mkdtimg /usr/local/bin/
+
       - name: Merge configs and build
         run: |
-          set -o pipefail   # ← 이걸 추가하면 make 실패 시 step도 실패로 처리됨
+          set -o pipefail
 
           make O=out \
             ARCH=arm64 LLVM=1 \
@@ -52,12 +60,28 @@ jobs:
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             olddefconfig
 
+          # 커널 + dtbs 같이 빌드
           make -j$(nproc) O=out \
             ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             KCFLAGS="-Wno-error=vla-extension" \
+            Image dtbs \
             2>&1 | tee build.log
+
+      - name: Create dtbo.img
+        run: |
+          # .dtbo 파일 찾기
+          DTBO_FILES=$(find out/arch/arm64/boot/dts -name "*.dtbo" | sort)
+          echo "Found dtbo files:"
+          echo "$DTBO_FILES"
+
+          if [ -z "$DTBO_FILES" ]; then
+            echo "Warning: No .dtbo files found"
+            exit 1
+          fi
+
+          mkdtimg create out/arch/arm64/boot/dtbo.img $DTBO_FILES
 
       - name: Upload kernel
         if: success()
@@ -66,10 +90,9 @@ jobs:
           name: kernel-f2q
           path: |
             out/arch/arm64/boot/Image
-            out/arch/arm64/boot/Image.gz-dtb
             out/arch/arm64/boot/dtbo.img
 
-      - name: Upload build log   # ← 항상 업로드 (성공/실패 무관)
+      - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
