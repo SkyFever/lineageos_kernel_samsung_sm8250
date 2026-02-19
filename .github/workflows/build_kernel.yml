@@ -143,19 +143,41 @@ jobs:
 
           cd ..
 
-      - name: Package for Odin (tar.md5)
+      - name: Create vbmeta (AVB disabled)
         run: |
+          pip install avbtool 2>/dev/null || \
+          curl -Lo avbtool \
+            "https://android.googlesource.com/platform/external/avb/+/refs/heads/master/avbtool.py?format=TEXT" \
+            | base64 -d > avbtool && chmod +x avbtool && sudo mv avbtool /usr/local/bin/avbtool
+
+          # 검증 비활성화된 vbmeta 생성
+          avbtool make_vbmeta_image \
+            --flag 2 \
+            --padding_size 4096 \
+            --output vbmeta.img
+
+      - name: Package for Odin
+        run: |
+          # boot.tar.md5
           tar -cf boot.tar.md5 boot.img
           md5sum -t boot.tar.md5 >> boot.tar.md5
 
+          # dtbo.tar.md5
+          tar -cf dtbo.tar.md5 out/arch/arm64/boot/dtbo.img
+          md5sum -t dtbo.tar.md5 >> dtbo.tar.md5
+
+          # vbmeta.tar.md5
+          tar -cf vbmeta.tar.md5 vbmeta.img
+          md5sum -t vbmeta.tar.md5 >> vbmeta.tar.md5
+
       - name: Upload Odin flashable
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: odin-f2q
           path: |
             boot.tar.md5
-            out/arch/arm64/boot/dtbo.img
+            dtbo.tar.md5
+            vbmeta.tar.md5
 
       - name: Upload kernel
         if: success()
