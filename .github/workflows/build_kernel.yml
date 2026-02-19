@@ -78,12 +78,10 @@ jobs:
 
       - name: Install avbtool
         run: |
-          git clone --depth=1 \
-            https://github.com/topjohnwu/avbtool.git \
-            /tmp/avbtool
-          sudo cp /tmp/avbtool/avbtool.py /usr/local/bin/avbtool
+          # raw 파일 직접 다운로드
+          curl -Lo /usr/local/bin/avbtool \
+            "https://raw.githubusercontent.com/LineageOS/android_external_avb/refs/heads/lineage-23.2/avbtool.py"
           sudo chmod +x /usr/local/bin/avbtool
-          # 확인
           avbtool version
 
       - name: Merge configs and build
