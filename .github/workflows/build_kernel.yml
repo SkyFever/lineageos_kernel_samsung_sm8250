@@ -44,11 +44,13 @@ jobs:
 
       - name: Install mkdtboimg
         run: |
-          curl -Lo mkdtboimg.py \
+          # -o 없이 stdout으로 받아서 base64 디코딩
+          curl -s \
             "https://android.googlesource.com/platform/system/libufdt/+/refs/heads/master/utils/src/mkdtboimg.py?format=TEXT" \
-            | base64 -d > mkdtboimg.py
-          chmod +x mkdtboimg.py
-          sudo mv mkdtboimg.py /usr/local/bin/mkdtboimg
+            | base64 -d > /usr/local/bin/mkdtboimg
+          chmod +x /usr/local/bin/mkdtboimg
+          # 정상 설치 확인
+          head -1 /usr/local/bin/mkdtboimg   # #!/usr/bin/env python3 이 나와야 함
 
       - name: Apply region config
         run: |
