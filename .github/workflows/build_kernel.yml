@@ -14,6 +14,12 @@ on:
           - KOR_SINGLE
           - JPN_SINGLE
 
+      watchdog:
+        description: 'watchdog variant'
+        required: true
+        default: true
+        type: boolean
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -66,6 +72,45 @@ jobs:
 
           echo "Applied region: $REGION"
           grep "MACH_F2Q" $CONFIG
+
+      - name: Apply watchdog config
+        run: |
+          WATCHDOG="${{ github.event.inputs.watchdog }}"
+          CONFIG_PERF="arch/arm64/configs/vendor/kona-perf_defconfig"
+          CONFIG_SEC="arch/arm64/configs/vendor/samsung/kona-sec-common.config"
+
+          # 기존 Watchdog 관련 설정 제거
+          sed -i '/^CONFIG_QCOM_WATCHDOG_V2/d' $CONFIG_PERF
+          sed -i '/^# CONFIG_QCOM_WATCHDOG_V2/d' $CONFIG_PERF
+          sed -i '/^CONFIG_WATCHDOG/d' $CONFIG_SEC
+          sed -i '/^# CONFIG_WATCHDOG/d' $CONFIG_SEC
+          sed -i '/^CONFIG_SOFT_WATCHDOG/d' $CONFIG_SEC
+          sed -i '/^# CONFIG_SOFT_WATCHDOG/d' $CONFIG_SEC
+          sed -i '/^CONFIG_WATCHDOG_CORE/d' $CONFIG_SEC
+          sed -i '/^# CONFIG_WATCHDOG_CORE/d' $CONFIG_SEC
+          sed -i '/^CONFIG_WATCHDOG_HANDLE_BOOT_ENABLED/d' $CONFIG_SEC
+          sed -i '/^# CONFIG_WATCHDOG_HANDLE_BOOT_ENABLED/d' $CONFIG_SEC
+          
+
+          if [ "$WATCHDOG" = "true" ]; then
+            echo "CONFIG_QCOM_WATCHDOG_V2=y" >> $CONFIG_PERF
+            echo "CONFIG_WATCHDOG=y" >> $CONFIG_SEC
+            echo "CONFIG_SOFT_WATCHDOG=y" >> $CONFIG_SEC
+            echo "CONFIG_WATCHDOG_CORE=y" >> $CONFIG_SEC
+            echo "CONFIG_WATCHDOG_HANDLE_BOOT_ENABLED=y" >> $CONFIG_SEC
+            echo "Watchdog is ENABLED."
+          else
+            echo "# CONFIG_QCOM_WATCHDOG_V2 is not set" >> $CONFIG_PERF
+            echo "# CONFIG_WATCHDOG is not set" >> $CONFIG_SEC
+            echo "# CONFIG_SOFT_WATCHDOG is not set" >> $CONFIG_SEC
+            echo "# CONFIG_WATCHDOG_CORE is not set" >> $CONFIG_SEC
+            echo "# CONFIG_WATCHDOG_HANDLE_BOOT_ENABLED in not set" >> $CONFIG_SEC
+            echo "Watchdog is DISABLED."
+          fi
+
+          echo "Selected watchdog value: $WATCHDOG"
+          grep "WATCHDOG" $CONFIG_PERF || true
+          grep "WATCHDOG" $CONFIG_SEC || true
 
       - name: Setup magiskboot
         run: |
