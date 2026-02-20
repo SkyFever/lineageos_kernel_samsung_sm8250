@@ -105,6 +105,9 @@ jobs:
             echo "# CONFIG_SOFT_WATCHDOG is not set" >> $CONFIG_SEC
             echo "# CONFIG_WATCHDOG_CORE is not set" >> $CONFIG_SEC
             echo "# CONFIG_WATCHDOG_HANDLE_BOOT_ENABLED in not set" >> $CONFIG_SEC
+
+            sed -i 's/emerg_pet_watchdog();/(void)0;/g' kernel/panic.c
+            sed -i 's/emerg_pet_watchdog();/(void)0;/g' drivers/samsung/debug/sec_debug.c
             echo "Watchdog is DISABLED."
           fi
 
