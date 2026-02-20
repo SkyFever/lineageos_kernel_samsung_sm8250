@@ -20,6 +20,12 @@ on:
         default: true
         type: boolean
 
+      selinux:
+        description: 'selinux variant'
+        required: true
+        default: true
+        type: boolean
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -114,6 +120,26 @@ jobs:
           echo "Selected watchdog value: $WATCHDOG"
           grep "WATCHDOG" $CONFIG_PERF || true
           grep "WATCHDOG" $CONFIG_SEC || true
+
+      - name: Apply selinux config
+        run: |
+          SELINUX="${{ github.event.inputs.selinux }}"
+          CONFIG_PERF="arch/arm64/configs/vendor/kona-perf_defconfig"
+
+          # 기존 Watchdog 관련 설정 제거
+          sed -i '/^CONFIG_SECURITY_SELINUX/d' $CONFIG_PERF
+          sed -i '/^# CONFIG_SECURITY_SELINUX/d' $CONFIG_PERF
+          
+          if [ "$WATCHDOG" = "true" ]; then
+            echo "CONFIG_SECURITY_SELINUX=y" >> $CONFIG_PERF
+            echo "SELinux is ENABLED."
+          else
+            echo "# CONFIG_SECURITY_SELINUX is not set" >> $CONFIG_PERF
+            echo "SELinux is DISABLED."
+          fi
+
+          echo "Selected SELinux value: $SELINUX"
+          grep "SELINUX" $CONFIG_PERF || true
 
       - name: Setup magiskboot
         run: |
