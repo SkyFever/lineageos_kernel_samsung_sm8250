@@ -540,9 +540,10 @@ int msm_fb_obj_get_attrs(struct drm_gem_object *obj, int *fb_ns,
 		// DRM_DEBUG("NULL attachment in gem object flags: 0x%x\n", msm_obj->flags);
 		
 		/* BYPASS for One UI 6 GSI: Assume non-secure buffer instead of crashing */
-		*fb_ns = 1;
-		*fb_sec = 0;
-		*fb_sec_dir = 0;
+		(void)msm_obj;
+	    *fb_ns = 1;
+	    *fb_sec = 0;
+	    *fb_sec_dir = 0;
 		if (flags) {
 			*flags = 0;
 		}
