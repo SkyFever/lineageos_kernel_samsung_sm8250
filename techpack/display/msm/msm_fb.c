@@ -537,9 +537,16 @@ int msm_fb_obj_get_attrs(struct drm_gem_object *obj, int *fb_ns,
 	int ret = 0;
 
 	if (!obj->import_attach) {
-		DRM_DEBUG("NULL attachment in gem object flags: 0x%x\n",
-						 msm_obj->flags);
-		return -EINVAL;
+		// DRM_DEBUG("NULL attachment in gem object flags: 0x%x\n", msm_obj->flags);
+		
+		/* BYPASS for One UI 6 GSI: Assume non-secure buffer instead of crashing */
+		*fb_ns = 1;
+		*fb_sec = 0;
+		*fb_sec_dir = 0;
+		if (flags) {
+			*flags = 0;
+		}
+		return 0; // -EINVAL 대신 0(성공) 반환
 	}
 
 	ret = dma_buf_get_flags(obj->import_attach->dmabuf, flags);
