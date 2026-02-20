@@ -132,11 +132,10 @@ jobs:
             if [ -n "$TARGET_FILE" ]; then
               echo "Target file found: $TARGET_FILE"
               
-              # Perl을 이용한 멀티라인 정규식 치환 (YAML 들여쓰기 문제 완벽 회피)
-              perl -0777 -pi -e 's/if\s*\(\!obj->import_attach\)\s*\{.*?return\s+-EINVAL;\s*\}/if (!obj->import_attach) {\n\t\t\/* BYPASS *\/\n\t\t*fb_ns = 1;\n\t\t*fb_sec = 0;\n\t\t*fb_sec_dir = 0;\n\t\tif (flags) *flags = 0;\n\t\treturn 0;\n\t}/gs' "$TARGET_FILE"
+              # (void)msm_obj; 를 추가하여 미사용 변수 경고(-Wunused-variable) 완벽 회피
+              perl -0777 -pi -e 's/if\s*\(\!obj->import_attach\)\s*\{.*?return\s+-EINVAL;\s*\}/if (!obj->import_attach) {\n\t\t\/* BYPASS *\/\n\t\t(void)msm_obj;\n\t\t*fb_ns = 1;\n\t\t*fb_sec = 0;\n\t\t*fb_sec_dir = 0;\n\t\tif (flags) *flags = 0;\n\t\treturn 0;\n\t}/gs' "$TARGET_FILE"
               
               echo "Patch applied successfully in $TARGET_FILE!"
-              # 패치가 잘 되었는지 확인하기 위해 주변 코드 15줄 출력
               grep -A 10 -B 2 "BYPASS" "$TARGET_FILE" || true
             else
               echo "Error: Target file not found. Check the grep search path."
