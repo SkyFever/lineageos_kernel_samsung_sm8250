@@ -26,6 +26,12 @@ on:
         default: false
         type: boolean
 
+      selinux:
+        description: 'selinux variant'
+        required: true
+        default: true
+        type: boolean
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -140,6 +146,27 @@ jobs:
             else
               echo "Error: Target file not found. Check the grep search path."
               exit 1
+            fi
+          fi
+          
+      - name: Apply selinux config
+        run: |
+          SELINUX="${{ github.event.inputs.selinux }}"
+
+          if [ "$SELINUX" = "false" ]; then
+            echo "Searching for the target file..."
+            TARGET_FILE=$(grep -rl "#define selinux_enforcing_boot 1" security/ || true)
+            if [ -n "$TARGET_FILE" ]; then
+              echo "Target file found: $TARGET_FILE"
+              
+              # selinux_enforcing_boot 값을 1에서 0으로 변경
+              perl -0777 -pi -e 's/#define\s+selinux_enforcing_boot\s+1/#define selinux_enforcing_boot 0/gs' "$TARGET_FILE"
+              
+              echo "Patch applied successfully in $TARGET_FILE!"
+              # 변경된 부분 확인
+              grep -A 2 -B 2 "selinux_enforcing_boot 0" "$TARGET_FILE" || true
+            else
+              echo "Error: Target file not found. Check the grep search path."
             fi
           fi
 
