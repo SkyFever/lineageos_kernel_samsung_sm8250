@@ -130,7 +130,7 @@ jobs:
           sed -i '/^CONFIG_SECURITY_SELINUX/d' $CONFIG_PERF
           sed -i '/^# CONFIG_SECURITY_SELINUX/d' $CONFIG_PERF
           
-          if [ "$WATCHDOG" = "true" ]; then
+          if [ "$SELINUX" = "true" ]; then
             echo "CONFIG_SECURITY_SELINUX=y" >> $CONFIG_PERF
             echo "SELinux is ENABLED."
           else
