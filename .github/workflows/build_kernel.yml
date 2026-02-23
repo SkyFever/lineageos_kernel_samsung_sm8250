@@ -195,14 +195,14 @@ jobs:
             -e SND_SOC_WCD_MBHC \
             -e SND_SOC_WCD_MBHC_ADC
 
-          echo "=== SoundWire source check ==="
-          ls drivers/soundwire/ 2>/dev/null || echo "drivers/soundwire 없음"
-          ls techpack/audio/soc/ | grep -i swr || echo "techpack swr 없음"
-          grep -r "config SOUNDWIRE" drivers/ techpack/ 2>/dev/null | head -5 || echo "SOUNDWIRE Kconfig 없음"
-          grep -A 5 "menuconfig SOUNDWIRE" drivers/soundwire/Kconfig
+          make O=out \
+            ARCH=arm64 LLVM=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            olddefconfig
 
-          grep -E "config.*SWR|config.*SOUNDWIRE" techpack/audio/soc/Kbuild techpack/audio/soc/Kconfig 2>/dev/null | head -10
-          grep -E "REGMAP_SWR|SWR_" techpack/audio/config/kona_f2.conf
+          echo "=== Audio config check (2nd try) ==="
+          grep -E 'SOUNDWIRE|REGMAP_SWR|WCD938|WCD_IRQ|WCD_MBHC' out/.config || echo "NONE FOUND"
 
           # 커널 + dtbs 같이 빌드
           make -j$(nproc) O=out \
