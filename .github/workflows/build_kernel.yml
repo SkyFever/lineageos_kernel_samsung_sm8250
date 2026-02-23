@@ -204,6 +204,11 @@ jobs:
           echo "=== Audio config check (2nd try) ==="
           grep -E 'SOUNDWIRE|REGMAP_SWR|WCD938|WCD_IRQ|WCD_MBHC' out/.config || echo "NONE FOUND"
 
+          echo "=== SoundWire source check ==="
+          ls drivers/soundwire/ 2>/dev/null || echo "drivers/soundwire 없음"
+          ls techpack/audio/soc/ | grep -i swr || echo "techpack swr 없음"
+          grep -r "config SOUNDWIRE" drivers/ techpack/ 2>/dev/null | head -5 || echo "SOUNDWIRE Kconfig 없음"
+
           # 커널 + dtbs 같이 빌드
           make -j$(nproc) O=out \
             ARCH=arm64 LLVM=1 \
