@@ -179,7 +179,29 @@ jobs:
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             olddefconfig
 
-          echo "=== Audio config check ==="
+          echo "=== Audio config check (1st try) ==="
+          grep -E 'SOUNDWIRE|REGMAP_SWR|WCD938|WCD_IRQ|WCD_MBHC' out/.config || echo "NONE FOUND"
+
+          # 의존성 순서대로 강제 활성화
+          scripts/config --file out/.config \
+            -e SOUNDWIRE \
+            -e SOUNDWIRE_MSTR_CTRL \
+            -e REGMAP_SWR \
+            -e SND_SOC_WCD9XXX_V2 \
+            -e WCD9XXX_CODEC_CORE_V2 \
+            -e SND_SOC_WCD_IRQ \
+            -e SND_SOC_WCD938X \
+            -e SND_SOC_WCD938X_SLAVE \
+            -e SND_SOC_WCD_MBHC \
+            -e SND_SOC_WCD_MBHC_ADC
+          
+          # olddefconfig 한 번 더 돌려서 추가 의존성 해소
+          make O=out ARCH=arm64 LLVM=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            olddefconfig
+
+          echo "=== Audio config check (2nd try) ==="
           grep -E 'SOUNDWIRE|REGMAP_SWR|WCD938|WCD_IRQ|WCD_MBHC' out/.config || echo "NONE FOUND"
 
           # 커널 + dtbs 같이 빌드
