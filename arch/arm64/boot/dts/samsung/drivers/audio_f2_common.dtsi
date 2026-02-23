@@ -281,7 +281,7 @@
 };
 
 &wcd938x_codec {
-	status = "disabled";
+	status = "okay";
 };
 
 &fsa4480 {
