@@ -53,7 +53,8 @@
 	qcom,msm-mbhc-hphl-swh = <0>;
 	qcom,msm-mbhc-gnd-swh = <0>;
 	qcom,wsa-max-devs = <0>;
-	qcom,codec-max-aux-devs = <0>;
+	qcom,codec-max-aux-devs = <1>;
+	qcom,codec-aux-devs = <&wcd938x_codec>;
 	fsa4480-i2c-handle = <>;
 	qcom,tdm-max-slots = <4>;
 	qcom,component-dai-name = "cs35l41-pcm";
@@ -73,8 +74,8 @@
 };
 
 &wcd938x_rst_gpio {
-	pinctrl-0 = <>;
-	pinctrl-1 = <>;
+	pinctrl-0 = <&wcd938x_reset_active>;
+    pinctrl-1 = <&wcd938x_reset_sleep>;
 };
 
 &dai_mi2s3 {
