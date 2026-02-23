@@ -188,6 +188,15 @@ jobs:
             Image dtbs \
             2>&1 | tee build.log
 
+          # techpack/audio 빌드 추가
+          make -j$(nproc) O=out \
+            ARCH=arm64 LLVM=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            M=techpack/audio \
+            modules \
+            2>&1 | tee -a build.log
+
       - name: Create dtbo.img
         run: |
           REGION="${{ github.event.inputs.region }}"
@@ -234,26 +243,26 @@ jobs:
 
       - name: Package for Odin
         run: |
-          # boot.tar.md5
-          tar -cf boot.tar.md5 boot.img
-          md5sum -t boot.tar.md5 >> boot.tar.md5
+          # boot.tar
+          tar -cf boot.tar boot.img
+          # md5sum -t boot.tar >> boot.tar.md5
 
           # dtbo.tar.md5
-          tar -cf dtbo.tar.md5 out/arch/arm64/boot/dtbo.img
-          md5sum -t dtbo.tar.md5 >> dtbo.tar.md5
+          tar -cf dtbo.tar out/arch/arm64/boot/dtbo.img
+          # md5sum -t dtbo.tar >> dtbo.tar.md5
 
           # vbmeta.tar.md5
           tar -cf vbmeta.tar.md5 vbmeta.img
-          md5sum -t vbmeta.tar.md5 >> vbmeta.tar.md5
+          # md5sum -t vbmeta.tar >> vbmeta.tar.md5
 
       - name: Upload Odin flashable
         uses: actions/upload-artifact@v4
         with:
           name: odin-f2q
           path: |
-            boot.tar.md5
-            dtbo.tar.md5
-            vbmeta.tar.md5
+            boot.tar
+            dtbo.tar
+            vbmeta.tar
 
       - name: Upload kernel
         if: success()
@@ -270,3 +279,10 @@ jobs:
         with:
           name: build-log
           path: build.log
+
+      - name: Upload module
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: techpack
+          path: out/arch/arm64/boot/modules
