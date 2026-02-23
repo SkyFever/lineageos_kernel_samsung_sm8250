@@ -179,6 +179,8 @@ jobs:
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             olddefconfig
 
+          grep -E 'SOUNDWIRE|REGMAP_SWR|WCD938|WCD_IRQ|WCD_MBHC' out/.config
+
           # 커널 + dtbs 같이 빌드
           make -j$(nproc) O=out \
             ARCH=arm64 LLVM=1 \
