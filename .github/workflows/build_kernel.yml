@@ -201,6 +201,9 @@ jobs:
           grep -r "config SOUNDWIRE" drivers/ techpack/ 2>/dev/null | head -5 || echo "SOUNDWIRE Kconfig 없음"
           grep -A 5 "menuconfig SOUNDWIRE" drivers/soundwire/Kconfig
 
+          grep -E "config.*SWR|config.*SOUNDWIRE" techpack/audio/soc/Kbuild techpack/audio/soc/Kconfig 2>/dev/null | head -10
+          grep -E "REGMAP_SWR|SWR_" techpack/audio/config/kona_f2.conf
+
           # 커널 + dtbs 같이 빌드
           make -j$(nproc) O=out \
             ARCH=arm64 LLVM=1 \
