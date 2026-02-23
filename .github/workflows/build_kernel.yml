@@ -179,7 +179,8 @@ jobs:
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             olddefconfig
 
-          grep -E 'SOUNDWIRE|REGMAP_SWR|WCD938|WCD_IRQ|WCD_MBHC' out/.config
+          echo "=== Audio config check ==="
+          grep -E 'SOUNDWIRE|REGMAP_SWR|WCD938|WCD_IRQ|WCD_MBHC' out/.config || echo "NONE FOUND"
 
           # 커널 + dtbs 같이 빌드
           make -j$(nproc) O=out \
@@ -187,7 +188,7 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             KCFLAGS="-Wno-error=vla-extension" \
-            Image dtbs \
+            Image dtbs modules \
             2>&1 | tee build.log
 
           # techpack/audio 빌드 추가
@@ -245,26 +246,26 @@ jobs:
 
       - name: Package for Odin
         run: |
-          # boot.tar
-          tar -cf boot.tar boot.img
-          # md5sum -t boot.tar >> boot.tar.md5
+          # boot.tar.md5
+          tar -cf boot.tar.md5 boot.img
+          md5sum -t boot.tar.md5 >> boot.tar.md5
 
           # dtbo.tar.md5
-          tar -cf dtbo.tar out/arch/arm64/boot/dtbo.img
-          # md5sum -t dtbo.tar >> dtbo.tar.md5
+          tar -cf dtbo.tar.md5 out/arch/arm64/boot/dtbo.img
+          md5sum -t dtbo.tar.md5 >> dtbo.tar.md5
 
           # vbmeta.tar.md5
           tar -cf vbmeta.tar.md5 vbmeta.img
-          # md5sum -t vbmeta.tar >> vbmeta.tar.md5
+          md5sum -t vbmeta.tar.md5 >> vbmeta.tar.md5
 
       - name: Upload Odin flashable
         uses: actions/upload-artifact@v4
         with:
           name: odin-f2q
           path: |
-            boot.tar
-            dtbo.tar
-            vbmeta.tar
+            boot.tar.md5
+            dtbo.tar.md5
+            vbmeta.tar.md5
 
       - name: Upload kernel
         if: success()
