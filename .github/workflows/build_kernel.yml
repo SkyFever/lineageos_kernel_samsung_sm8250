@@ -189,6 +189,8 @@ jobs:
             Image.gz-dtb \
             2>&1 | tee build.log
 
+          grep -iE "cs35l41|cs40l2x_irq|sec_motor" out/System.map
+
       - name: Create dtbo.img
         run: |
           REGION="${{ github.event.inputs.region }}"
