@@ -186,7 +186,7 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             KCFLAGS="-Wno-error=vla-extension" \
-            Image dtbs \
+            Image.gz-dtb \
             2>&1 | tee build.log
 
       - name: Create dtbo.img
@@ -218,8 +218,10 @@ jobs:
           # 언팩
           magiskboot unpack stock_boot.img
 
+          rm -f dtb
+
           # 커널 교체
-          cp ../out/arch/arm64/boot/Image kernel
+          cp ../out/arch/arm64/boot/Image.gz-dtb kernel
 
           # 리팩
           magiskboot repack stock_boot.img ../boot.img
